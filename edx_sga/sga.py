@@ -239,6 +239,9 @@ class StaffGradedAssignmentXBlock(XBlock):
             (name, field.read_from(self))
             for name, field in self.fields.items()]
 
+    def get_module_by_id(self, module_id):
+        return StudentModule.objects.get(pk=module_id)
+
     def student_state(self):
         """
         Returns a JSON serializable representation of student's state for
@@ -441,7 +444,7 @@ class StaffGradedAssignmentXBlock(XBlock):
         """
         require(self.is_course_staff())
         upload = request.params['annotated']
-        module = StudentModule.objects.get(pk=request.params['module_id'])
+        module = self.get_module_by_id(request.params['module_id'])
         state = json.loads(module.state)
         state['annotated_sha1'] = sha1 = _get_sha1(upload.file)
         state['annotated_filename'] = filename = upload.file.name
@@ -512,7 +515,7 @@ class StaffGradedAssignmentXBlock(XBlock):
         Return annotated assignment file requested by staff.
         """
         require(self.is_course_staff())
-        module = StudentModule.objects.get(pk=request.params['module_id'])
+        module = self.get_module_by_id(request.params['module_id'])
         state = json.loads(module.state)
         path = self._file_storage_path(
             state['annotated_sha1'],
@@ -580,7 +583,7 @@ class StaffGradedAssignmentXBlock(XBlock):
         """
         require(self.is_course_staff())
         score = request.params.get('grade', None)
-        module = StudentModule.objects.get(pk=request.params['module_id'])
+        module = self.get_module_by_id(request.params['module_id'])
         if not score:
             return Response(
                 json_body=self.validate_score_message(
@@ -626,7 +629,7 @@ class StaffGradedAssignmentXBlock(XBlock):
         require(self.is_course_staff())
         student_id = request.params['student_id']
         submissions_api.reset_score(student_id, unicode(self.course_id), unicode(self.block_id))
-        module = StudentModule.objects.get(pk=request.params['module_id'])
+        module = self.get_module_by_id(request.params['module_id'])
         state = json.loads(module.state)
         state['staff_score'] = None
         state['comment'] = ''
@@ -686,7 +689,7 @@ class StaffGradedAssignmentXBlock(XBlock):
         Get file path of storage.
         """
         path = (
-            '{loc.org}/{loc.course}/{loc.block_type}/{loc.block_id}'
+            u'{loc.org}/{loc.course}/{loc.block_type}/{loc.block_id}'
             '/{sha1}{ext}'.format(
                 loc=self.location,
                 sha1=sha1,
@@ -720,7 +723,6 @@ def _now():
     Get current date and time.
     """
     return datetime.datetime.utcnow().replace(tzinfo=pytz.timezone(getattr(settings, "TIME_ZONE", pytz.utc.zone)))
-
 
 
 def load_resource(resource_path):  # pragma: NO COVER
