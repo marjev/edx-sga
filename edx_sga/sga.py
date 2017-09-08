@@ -13,7 +13,10 @@ import pytz
 
 from functools import partial  # lint-amnesty, pylint: disable=wrong-import-order
 
-from courseware.models import StudentModule  # lint-amnesty, pylint: disable=import-error
+try:
+    from courseware.models import StudentModule  # lint-amnesty, pylint: disable=import-error
+except ImportError:
+    pass
 
 from django.core.exceptions import PermissionDenied  # lint-amnesty, pylint: disable=import-error
 from django.core.files import File  # lint-amnesty, pylint: disable=import-error
@@ -21,18 +24,25 @@ from django.core.files.storage import default_storage  # lint-amnesty, pylint: d
 from django.conf import settings  # lint-amnesty, pylint: disable=import-error
 from django.template import Context, Template  # lint-amnesty, pylint: disable=import-error
 
-from student.models import user_by_anonymous_id  # lint-amnesty, pylint: disable=import-error
+try:
+    from student.models import user_by_anonymous_id  # lint-amnesty, pylint: disable=import-error
+except ImportError:
+    pass
+
 from submissions import api as submissions_api  # lint-amnesty, pylint: disable=import-error
 from submissions.models import StudentItem as SubmissionsStudent  # lint-amnesty, pylint: disable=import-error
 
 from webob.response import Response
 
-from xblock.core import XBlock
-from xblock.exceptions import JsonHandlerError
-from xblock.fields import DateTime, Scope, String, Float, Integer
-from xblock.fragment import Fragment
+try:
+    from xblock.core import XBlock
+    from xblock.exceptions import JsonHandlerError
+    from xblock.fields import DateTime, Scope, String, Float, Integer
+    from xblock.fragment import Fragment
 
-from xmodule.util.duedate import get_extended_due_date  # lint-amnesty, pylint: disable=import-error
+    from xmodule.util.duedate import get_extended_due_date  # lint-amnesty, pylint: disable=import-error
+except ImportError:
+    pass
 
 
 log = logging.getLogger(__name__)
@@ -240,7 +250,18 @@ class StaffGradedAssignmentXBlock(XBlock):
             for name, field in self.fields.items()]
 
     def get_module_by_id(self, module_id):
-        return StudentModule.objects.get(pk=module_id)
+        """
+        returns student mode object
+        """
+        student_module = None
+        try:
+            student_module = StudentModule.objects.get(pk=module_id)
+        except StudentModule.DoesNotExist:
+            log.info(
+                "No student module object found for module_id:%s",
+                module_id
+            )
+        return student_module
 
     def student_state(self):
         """
@@ -431,7 +452,7 @@ class StaffGradedAssignmentXBlock(XBlock):
         }
         student_id = self.student_submission_id()
         submissions_api.create_submission(student_id, answer)
-        path = self._file_storage_path(sha1, upload.file.name)
+        path = self.file_storage_path(sha1, upload.file.name)
         if not default_storage.exists(path):
             default_storage.save(path, File(upload.file))
         return Response(json_body=self.student_state())
@@ -452,7 +473,7 @@ class StaffGradedAssignmentXBlock(XBlock):
         state['annotated_timestamp'] = _now().strftime(
             DateTime.DATETIME_FORMAT
         )
-        path = self._file_storage_path(sha1, filename)
+        path = self.file_storage_path(sha1, filename)
         if not default_storage.exists(path):
             default_storage.save(path, File(upload.file))
         module.state = json.dumps(state)
@@ -472,7 +493,7 @@ class StaffGradedAssignmentXBlock(XBlock):
         Fetch student assignment from storage and return it.
         """
         answer = self.get_submission()['answer']
-        path = self._file_storage_path(answer['sha1'], answer['filename'])
+        path = self.file_storage_path(answer['sha1'], answer['filename'])
         return self.download(path, answer['mimetype'], answer['filename'])
 
     @XBlock.handler
@@ -481,7 +502,7 @@ class StaffGradedAssignmentXBlock(XBlock):
         """
         Fetch assignment with staff annotations from storage and return it.
         """
-        path = self._file_storage_path(
+        path = self.file_storage_path(
             self.annotated_sha1,
             self.annotated_filename,
         )
@@ -500,7 +521,7 @@ class StaffGradedAssignmentXBlock(XBlock):
         require(self.is_course_staff())
         submission = self.get_submission(request.params['student_id'])
         answer = submission['answer']
-        path = self._file_storage_path(answer['sha1'], answer['filename'])
+        path = self.file_storage_path(answer['sha1'], answer['filename'])
         return self.download(
             path,
             answer['mimetype'],
@@ -517,7 +538,7 @@ class StaffGradedAssignmentXBlock(XBlock):
         require(self.is_course_staff())
         module = self.get_module_by_id(request.params['module_id'])
         state = json.loads(module.state)
-        path = self._file_storage_path(
+        path = self.file_storage_path(
             state['annotated_sha1'],
             state['annotated_filename']
         )
@@ -683,7 +704,7 @@ class StaffGradedAssignmentXBlock(XBlock):
         """
         return not self.past_due() and self.score is None
 
-    def _file_storage_path(self, sha1, filename):
+    def file_storage_path(self, sha1, filename):
         # pylint: disable=no-member
         """
         Get file path of storage.
