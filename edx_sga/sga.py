@@ -442,7 +442,7 @@ class StaffGradedAssignmentXBlock(XBlock):
     def remove_grade(self, request, suffix=''):
         require(self.is_course_staff())
         student_id = request.params['student_id']
-        submissions_api.reset_score(student_id, self.course_id, self.block_id)
+        submissions_api.reset_score(student_id, self.course_id, self.block_id, clear_state=True)
         module = StudentModule.objects.get(pk=request.params['module_id'])
         state = json.loads(module.state)
         state['staff_score'] = None
